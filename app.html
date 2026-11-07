@@ -1,0 +1,6 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
+<script src="config.js"></script><script src="shell.js"></script>
+<script>(async function(){var A=await Shell.init({active:'dash',title:'Dashboard'});
+A.main.innerHTML='<section class="card" style="padding:24px"><h2 style="margin:0 0 6px">Welcome, '+A.esc(A.me.full_name)+'</h2><p style="margin:0;color:var(--mut)">Login and security are working. The next steps add Staff, Settings and Packages, then Customers.</p></section>';})();</script></body></html>
