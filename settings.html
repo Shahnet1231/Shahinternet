@@ -1,0 +1,29 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Settings</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
+<script src="config.js"></script><script src="shell.js"></script>
+<script>(async function(){
+var A=await Shell.init({active:'set',title:'Settings'}),sb=A.sb,m=A.main,esc=A.esc,tab=A.isAdmin?'company':'acct';
+var TABS=A.isAdmin?[['company','Company'],['lists','Providers, services and areas'],['acct','My account']]:[['acct','My account']];
+m.innerHTML='<section class="card" style="overflow:hidden"><div class="tabs" id="tabs"></div><div id="body" style="padding:20px"></div></section>';
+var body=document.getElementById('body');
+async function ok(p,msg){var r=await p;if(r.error){Shell.toast(r.error.message);return false}if(msg)Shell.toast(msg);return true}
+function show(){var t=document.getElementById('tabs');t.innerHTML=TABS.map(function(x){return '<button class="tab'+(x[0]===tab?' on':'')+'" data-t="'+x[0]+'">'+x[1]+'</button>'}).join('');
+t.querySelectorAll('button').forEach(function(b){b.onclick=function(){tab=b.dataset.t;show()}});({company:company,lists:lists,acct:acct})[tab]()}
+async function company(){var c=(await sb.from('company').select('*').maybeSingle()).data||{};
+body.innerHTML='<div style="max-width:480px"><label class="lbl" for="cn" style="margin-top:0">Company name</label><input id="cn" class="in" value="'+esc(c.name)+'"><label class="lbl" for="cp">Phone</label><input id="cp" class="in" value="'+esc(c.phone)+'"><label class="lbl" for="ca">Address</label><input id="ca" class="in" value="'+esc(c.address)+'"><div style="margin-top:18px"><button class="btn p" id="sv">Save company</button></div></div>';
+document.getElementById('sv').onclick=async function(){var n=document.getElementById('cn').value.trim();if(!n){Shell.toast('Company name is required.');return}
+await ok(sb.from('company').update({name:n,phone:document.getElementById('cp').value.trim()||null,address:document.getElementById('ca').value.trim()||null}).eq('id',true),'Company details saved.')}}
+async function lists(){var a=await Promise.all(['providers','services','areas'].map(function(t){return sb.from(t).select('id,name,active').order('name')}));
+var H={providers:['Providers','Companies you buy internet from.'],services:['Services','Example: Home fiber, Wireless.'],areas:['Areas','Example: Gulshan, Korangi.']};
+body.innerHTML='<div class="row" style="align-items:flex-start;gap:18px">'+['providers','services','areas'].map(function(t,i){var rows=a[i].data||[];
+return '<div style="flex:1 1 280px;border:1px solid var(--line);border-radius:12px;padding:18px"><h3 style="margin:0 0 4px;font-size:15px">'+H[t][0]+'</h3><div style="font-size:13px;color:var(--mut);margin-bottom:12px">'+H[t][1]+'</div>'+
+(rows.map(function(r){return '<div class="row" style="padding:8px 0;border-top:1px solid var(--line)"><span style="flex:1;'+(r.active?'':'color:var(--mut);text-decoration:line-through')+'">'+esc(r.name)+'</span><button class="btn sm" data-tg="'+t+':'+r.id+':'+(r.active?0:1)+'">'+(r.active?'Turn off':'Turn on')+'</button></div>'}).join('')||'<div style="color:var(--mut);padding:8px 0">Nothing added yet.</div>')+
+'<div class="row" style="margin-top:12px"><input class="in sm" style="flex:1" placeholder="Add new" id="n_'+t+'"><button class="btn p sm" data-add="'+t+'">Add</button></div></div>'}).join('')+'</div>';
+body.querySelectorAll('[data-add]').forEach(function(b){b.onclick=async function(){var t=b.dataset.add,v=document.getElementById('n_'+t).value.trim();if(!v)return;b.disabled=true;var g=await ok(sb.from(t).insert({name:v}),v+' added.');b.disabled=false;if(g)lists()}});
+body.querySelectorAll('[data-tg]').forEach(function(b){b.onclick=async function(){var p=b.dataset.tg.split(':');b.disabled=true;if(await ok(sb.from(p[0]).update({active:p[2]==='1'}).eq('id',p[1])))lists();else b.disabled=false}})}
+function acct(){body.innerHTML='<div style="max-width:420px"><h3 style="margin:0 0 4px;font-size:15px">Change my password</h3><div style="font-size:13px;color:var(--mut)">At least 8 characters.</div><label class="lbl" for="p1">New password</label><input id="p1" class="in" type="password" autocomplete="new-password"><label class="lbl" for="p2">Type it again</label><input id="p2" class="in" type="password" autocomplete="new-password"><div style="margin-top:16px"><button class="btn p" id="pb">Change password</button></div></div>';
+document.getElementById('pb').onclick=async function(){var a=document.getElementById('p1').value,b=document.getElementById('p2').value;
+if(a.length<8){Shell.toast('Password must be at least 8 characters.');return}if(a!==b){Shell.toast('The two passwords do not match.');return}
+if(await ok(sb.auth.updateUser({password:a}),'Password changed. Use it next time you sign in.')){document.getElementById('p1').value='';document.getElementById('p2').value=''}}}
+show()})();</script></body></html>

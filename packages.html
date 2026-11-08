@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Packages</title><link rel="stylesheet" href="style.css"></head>
+<body><div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.47.10/dist/umd/supabase.js"></script>
+<script src="config.js"></script><script src="shell.js"></script>
+<script>(async function(){
+var A=await Shell.init({active:'pkg',title:'Packages'}),sb=A.sb,m=A.main,esc=A.esc;
+if(!A.allowed('pkg')){m.innerHTML='<div class="card" style="padding:20px">You do not have permission to open Packages.</div>';return}
+var canAdd=A.allowed('pkg','can_add'),canEdit=A.allowed('pkg','can_edit'),P=[],V=[],S=[],K={};
+var rs=function(n){return 'Rs '+Number(n||0).toLocaleString('en-US')};
+var nm=function(a,id){var x=a.filter(function(y){return y.id===id})[0];return x?x.name:'-'};
+async function load(){var a=await Promise.all([sb.from('providers').select('id,name,active').order('name'),sb.from('services').select('id,name,active').order('name'),sb.from('packages').select('*').order('name'),A.isAdmin?sb.from('package_costs').select('*'):Promise.resolve({data:[]})]);
+a.forEach(function(x){if(x.error)Shell.toast(x.error.message)});V=a[0].data||[];S=a[1].data||[];P=a[2].data||[];K={};(a[3].data||[]).forEach(function(c){K[c.package_id]=c.provider_cost});draw()}
+function draw(){var ad=A.isAdmin;
+var rows=P.map(function(p){var c=K[p.id];return '<tr><td style="font-weight:600">'+esc(p.name)+'</td><td>'+esc(nm(V,p.provider_id))+'</td><td>'+esc(nm(S,p.service_id))+'</td><td>'+(p.speed_mbps?p.speed_mbps+' Mbps':'-')+'</td><td style="text-align:right">'+rs(p.sale_rate)+'</td>'+(ad?'<td style="text-align:right">'+(c!=null?rs(c):'-')+'</td><td style="text-align:right">'+(c!=null?rs(p.sale_rate-c):'')+'</td>':'')+'<td><span class="chip'+(p.active?' ok':'')+'">'+(p.active?'Active':'Inactive')+'</span></td><td>'+(canEdit?'<button class="btn sm" data-e="'+p.id+'">Edit</button>':'')+'</td></tr>'}).join('');
+m.innerHTML='<div class="row"><div style="flex:1"><h2 style="margin:0;font-size:16px">Packages</h2><div style="color:var(--mut);font-size:13px">What each customer pays'+(ad?' and what the provider charges you.':'.')+'</div></div>'+(canAdd?'<button class="btn p" id="add">Add package</button>':'')+'</div><section class="card" style="overflow:hidden"><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Package</th><th>Provider</th><th>Service</th><th>Speed</th><th style="text-align:right">Customer pays</th>'+(ad?'<th style="text-align:right">Provider cost</th><th style="text-align:right">Margin</th>':'')+'<th>Status</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:30px">No packages yet. Add providers and services in Settings first.</td></tr>')+'</tbody></table></div></section>';
+var b=document.getElementById('add');if(b)b.onclick=function(){form(null)};
+m.querySelectorAll('[data-e]').forEach(function(x){x.onclick=function(){form(P.filter(function(p){return p.id===x.dataset.e})[0])}})}
+function form(p){var aV=V.filter(function(x){return x.active||(p&&x.id===p.provider_id)}),aS=S.filter(function(x){return x.active||(p&&x.id===p.service_id)});
+if(!aV.length||!aS.length){Shell.toast('Add at least one provider and one service in Settings first.');return}
+var opt=function(a,s){return a.map(function(x){return '<option value="'+x.id+'"'+(x.id===s?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')};
+var c=p?K[p.id]:null;
+var body='<label class="lbl" for="fp">Provider</label><select id="fp" class="in">'+opt(aV,p&&p.provider_id)+'</select><label class="lbl" for="fs">Service</label><select id="fs" class="in">'+opt(aS,p&&p.service_id)+'</select>'+
+'<label class="lbl" for="fn">Package name</label><input id="fn" class="in" placeholder="Example: 10 Mbps" value="'+esc(p?p.name:'')+'"><label class="lbl" for="fm">Speed in Mbps (optional)</label><input id="fm" class="in" inputmode="numeric" value="'+esc(p&&p.speed_mbps||'')+'">'+
+'<label class="lbl" for="fr">Customer pays (Rs)</label><input id="fr" class="in" inputmode="numeric" value="'+esc(p?p.sale_rate:'')+'">'+(A.isAdmin?'<label class="lbl" for="fc">Provider cost (Rs), only Super Admin sees this</label><input id="fc" class="in" inputmode="numeric" value="'+esc(c!=null?c:'')+'">':'')+
+'<label style="display:flex;gap:8px;align-items:center;margin-top:14px"><input type="checkbox" id="fa"'+(!p||p.active?' checked':'')+'> Active</label>';
+Shell.modal(p?'Edit package':'Add package',body,async function(el,close){var v=function(i){return el.querySelector('#'+i).value.trim()};
+var name=v('fn'),rate=v('fr'),cost=A.isAdmin?v('fc'):'',sp=v('fm');
+if(!name)throw new Error('Enter the package name.');if(!/^\d+$/.test(rate))throw new Error('Customer price must be a number, for example 2000.');
+if(cost!==''&&!/^\d+$/.test(cost))throw new Error('Provider cost must be a number.');if(sp!==''&&!/^\d+$/.test(sp))throw new Error('Speed must be a number.');
+var row={provider_id:v('fp'),service_id:v('fs'),name:name,speed_mbps:sp===''?null:Number(sp),sale_rate:Number(rate),active:el.querySelector('#fa').checked},id=p&&p.id;
+if(id){var u=await sb.from('packages').update(row).eq('id',id);if(u.error)throw new Error(fr(u.error))}
+else{var i=await sb.from('packages').insert(row).select('id').single();if(i.error)throw new Error(fr(i.error));id=i.data.id}
+if(A.isAdmin&&cost!==''){var k=await sb.from('package_costs').upsert({package_id:id,provider_cost:Number(cost)});if(k.error)throw new Error(k.error.message)}
+sb.from('audit_log').insert({staff_id:A.me.id,module:'pkg',action:p?'edit':'add',details:{name:name,sale_rate:Number(rate)}});
+close();Shell.toast('Package saved.');load()})}
+function fr(e){return /duplicate|unique/i.test(e.message)?'This provider already has a package with that name and service.':e.message}
+load()})();</script></body></html>
